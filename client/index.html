@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GridMind - Federated Learning Platform</title>
+  
+  <!-- TensorFlow.js - GPU-accelerated ML in the browser -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js"></script>
+  
+  <!-- Socket.IO Client - Real-time WebSocket communication -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  
+  <!-- Chart.js - Training visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  
+  <style>
+    :root {
+      --bg-primary: #0f172a;
+      --bg-secondary: #1e293b;
+      --bg-tertiary: #334155;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #22c55e;
+      --warning: #eab308;
+      --error: #ef4444;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    /* Header */
+    header {
+      text-align: center;
+      padding: 30px 0;
+      border-bottom: 1px solid var(--bg-tertiary);
+      margin-bottom: 30px;
+    }
+    
+    h1 {
+      font-size: 2.5rem;
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+    }
+    
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 1.1rem;
+    }
+    
+    /* Grid Layout */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    
+    @media (max-width: 1024px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    /* Cards */
+    .card {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid var(--bg-tertiary);
+    }
+    
+    .card-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .card-title::before {
+      content: '';
+      width: 4px;
+      height: 20px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+    
+    /* Status Panel */
+    .status-panel {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .status-item {
+      background: var(--bg-tertiary);
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    
+    .status-label {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-bottom: 5px;
+    }
+    
+    .status-value {
+      font-size: 1.4rem;
+      font-weight: 600;
+    }
+    
+    .status-value.connected { color: var(--success); }
+    .status-value.disconnected { color: var(--error); }
+    .status-value.training { color: var(--warning); }
+    
+    /* Buttons */
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+    
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+    
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+    
+    .btn-secondary:hover:not(:disabled) {
+      background: #475569;
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    /* Charts */
+    .chart-container {
+      position: relative;
+      height: 300px;
+      margin-top: 15px;
+    }
+    
+    /* Log Console */
+    .log-console {
+      background: #0d1117;
+      border-radius: 8px;
+      padding: 15px;
+      height: 400px;
+      overflow-y: auto;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.85rem;
+      line-height: 1.8;
+    }
+    
+    .log-line {
+      padding: 2px 0;
+      border-bottom: 1px solid #21262d;
+    }
+    
+    .log-line:last-child {
+      border-bottom: none;
+    }
+    
+    .log-timestamp {
+      color: #6e7681;
+    }
+    
+    /* Sample Display */
+    .sample-grid {
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      gap: 5px;
+      margin-top: 15px;
+    }
+    
+    .sample-canvas {
+      width: 100%;
+      aspect-ratio: 1;
+      background: #000;
+      border-radius: 4px;
+      image-rendering: pixelated;
+    }
+    
+    /* Model Summary */
+    .model-summary {
+      font-family: monospace;
+      font-size: 0.8rem;
+      background: #0d1117;
+      padding: 15px;
+      border-radius: 8px;
+      overflow-x: auto;
+      white-space: pre;
+      color: var(--text-secondary);
+    }
+    
+    /* Animation */
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .training-indicator {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    
+    /* Progress Bar */
+    .progress-container {
+      margin-top: 15px;
+    }
+    
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #8b5cf6);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .status-panel {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      
+      h1 {
+        font-size: 1.8rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <h1>GridMind</h1>
+      <p class="subtitle">Browser-Based Federated Learning Platform</p>
+    </header>
+    
+    <!-- Status Panel -->
+    <div class="status-panel">
+      <div class="status-item">
+        <div class="status-label">Connection</div>
+        <div class="status-value" id="connectionStatus">Connecting...</div>
+      </div>
+      <div class="status-item">
+        <div class="status-label">Backend</div>
+        <div class="status-value" id="backendStatus">-</div>
+      </div>
+      <div class="status-item">
+        <div class="status-label">Round</div>
+        <div class="status-value" id="roundStatus">0</div>
+      </div>
+      <div class="status-item">
+        <div class="status-label">Global Version</div>
+        <div class="status-value" id="versionStatus">-</div>
+      </div>
+    </div>
+    
+    <!-- Control Panel -->
+    <div class="card" style="margin-bottom: 20px;">
+      <div class="card-title">Training Controls</div>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btnInit" onclick="initializeClient()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+          </svg>
+          Initialize
+        </button>
+        <button class="btn btn-primary" id="btnTrain" onclick="startTraining()" disabled>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          Run 1 Round
+        </button>
+        <button class="btn btn-secondary" id="btnTrainMultiple" onclick="startMultipleRounds()" disabled>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+          </svg>
+          Run 5 Rounds
+        </button>
+      </div>
+      
+      <div class="progress-container" id="progressContainer" style="display: none;">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-label">
+          <span id="progressLabel">Training...</span>
+          <span id="progressPercent">0%</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Main Grid -->
+    <div class="grid">
+      <!-- Loss Chart -->
+      <div class="card">
+        <div class="card-title">Training Loss</div>
+        <div class="chart-container">
+          <canvas id="lossChart"></canvas>
+        </div>
+      </div>
+      
+      <!-- Accuracy Chart -->
+      <div class="card">
+        <div class="card-title">Training Accuracy</div>
+        <div class="chart-container">
+          <canvas id="accuracyChart"></canvas>
+        </div>
+      </div>
+      
+      <!-- Sample Data -->
+      <div class="card">
+        <div class="card-title">Synthetic Training Data (Generated)</div>
+        <div class="sample-grid" id="sampleGrid">
+          <!-- Will be filled with canvas elements -->
+        </div>
+        <p style="margin-top: 15px; color: var(--text-secondary); font-size: 0.9rem;">
+          Each client generates unique synthetic data locally, simulating private user data.
+        </p>
+      </div>
+      
+      <!-- Model Architecture -->
+      <div class="card">
+        <div class="card-title">Model Architecture</div>
+        <div class="model-summary" id="modelSummary">
+Model not yet initialized.
+
+Architecture Preview:
+─────────────────────────
+Input:    [28, 28, 1]   
+Conv2D:   8 filters, 3x3
+MaxPool:  2x2           
+Conv2D:   16 filters, 3x3
+MaxPool:  2x2           
+Flatten:  [400]         
+Dense:    32 units      
+Output:   10 classes    
+─────────────────────────
+Total: ~15,000 params
+        </div>
+      </div>
+    </div>
+    
+    <!-- Log Console -->
+    <div class="card" style="margin-top: 20px;">
+      <div class="card-title">Console Output</div>
+      <div class="log-console" id="logConsole">
+        <div class="log-line">
+          <span class="log-timestamp">[System]</span> GridMind client loaded. Click "Initialize" to begin.
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Application Scripts -->
+  <script src="model.js"></script>
+  <script src="dataGenerator.js"></script>
+  <script src="fedClient.js"></script>
+  <script src="client.js"></script>
+  
+  <script>
+    // =========================================================================
+    // UI STATE & CHARTS
+    // =========================================================================
+    
+    let lossChart = null;
+    let accuracyChart = null;
+    let isInitialized = false;
+    
+    // Chart.js configuration
+    const chartConfig = {
+      type: 'line',
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 300 },
+        scales: {
+          x: {
+            title: { display: true, text: 'Step', color: '#94a3b8' },
+            grid: { color: '#334155' },
+            ticks: { color: '#94a3b8' }
+          },
+          y: {
+            title: { display: true, color: '#94a3b8' },
+            grid: { color: '#334155' },
+            ticks: { color: '#94a3b8' },
+            beginAtZero: true
+          }
+        },
+        plugins: {
+          legend: {
+            labels: { color: '#f1f5f9' }
+          }
+        }
+      }
+    };
+    
+    // Initialize charts
+    function initCharts() {
+      const lossCtx = document.getElementById('lossChart').getContext('2d');
+      lossChart = new Chart(lossCtx, {
+        ...chartConfig,
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Loss',
+            data: [],
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            fill: true,
+            tension: 0.3
+          }]
+        }
+      });
+      lossChart.options.scales.y.title.text = 'Loss';
+      
+      const accCtx = document.getElementById('accuracyChart').getContext('2d');
+      accuracyChart = new Chart(accCtx, {
+        ...chartConfig,
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Accuracy',
+            data: [],
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            fill: true,
+            tension: 0.3
+          }]
+        }
+      });
+      accuracyChart.options.scales.y.title.text = 'Accuracy';
+      accuracyChart.options.scales.y.max = 1;
+    }
+    
+    // =========================================================================
+    // UI UPDATE FUNCTIONS
+    // =========================================================================
+    
+    function updateConnectionStatus(status) {
+      const el = document.getElementById('connectionStatus');
+      el.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+      el.className = 'status-value ' + status;
+    }
+    
+    function addLogMessage(message) {
+      const console = document.getElementById('logConsole');
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      line.innerHTML = message;
+      console.appendChild(line);
+      console.scrollTop = console.scrollHeight;
+    }
+    
+    function updateMetrics(metrics) {
+      if (metrics.round !== undefined) {
+        document.getElementById('roundStatus').textContent = metrics.round;
+      }
+      if (metrics.globalVersion !== undefined) {
+        document.getElementById('versionStatus').textContent = 'v' + metrics.globalVersion;
+      }
+      if (metrics.loss !== undefined && lossChart) {
+        const step = lossChart.data.labels.length + 1;
+        lossChart.data.labels.push(step);
+        lossChart.data.datasets[0].data.push(metrics.loss);
+        lossChart.update('none');
+      }
+      if (metrics.accuracy !== undefined && accuracyChart) {
+        const step = accuracyChart.data.labels.length + 1;
+        accuracyChart.data.labels.push(step);
+        accuracyChart.data.datasets[0].data.push(metrics.accuracy);
+        accuracyChart.update('none');
+      }
+    }
+    
+    function showProgress(show, label = '', percent = 0) {
+      const container = document.getElementById('progressContainer');
+      const fill = document.getElementById('progressFill');
+      const labelEl = document.getElementById('progressLabel');
+      const percentEl = document.getElementById('progressPercent');
+      
+      container.style.display = show ? 'block' : 'none';
+      fill.style.width = percent + '%';
+      labelEl.textContent = label;
+      percentEl.textContent = percent + '%';
+    }
+    
+    // =========================================================================
+    // MAIN FUNCTIONS
+    // =========================================================================
+    
+    async function initializeClient() {
+      if (isInitialized) return;
+      
+      const btn = document.getElementById('btnInit');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="training-indicator">Initializing...</span>';
+      
+      try {
+        // Initialize charts
+        initCharts();
+        
+        // Set up callbacks
+        GridMindClient.setCallbacks({
+          onStatusUpdate: (status) => {
+            updateConnectionStatus(status);
+            
+            if (status === 'training') {
+              document.getElementById('btnTrain').disabled = true;
+              document.getElementById('btnTrainMultiple').disabled = true;
+            } else if (status === 'ready') {
+              document.getElementById('btnTrain').disabled = false;
+              document.getElementById('btnTrainMultiple').disabled = false;
+            }
+          },
+          onMetricsUpdate: updateMetrics,
+          onLogMessage: addLogMessage
+        });
+        
+        // Initialize the client
+        await GridMindClient.initialize();
+        
+        // Update backend status with color coding
+        const backendEl = document.getElementById('backendStatus');
+        const backend = tf.getBackend().toUpperCase();
+        const state = GridMindClient.getState();
+        const isGPU = state.backendInfo?.isGPU;
+        
+        backendEl.textContent = backend;
+        if (isGPU) {
+          backendEl.style.color = '#22c55e'; // Green for GPU
+        } else {
+          backendEl.style.color = '#eab308'; // Yellow/warning for CPU
+          backendEl.textContent = backend + ' (No GPU)';
+        }
+        
+        // Display sample data
+        displaySampleData();
+        
+        // Update model summary
+        updateModelSummary();
+        
+        isInitialized = true;
+        btn.innerHTML = 'Initialized';
+        document.getElementById('btnTrain').disabled = false;
+        document.getElementById('btnTrainMultiple').disabled = false;
+        
+      } catch (error) {
+        addLogMessage(`<span style="color: #ef4444;">Error: ${error.message}</span>`);
+        btn.disabled = false;
+        btn.innerHTML = 'Initialize';
+      }
+    }
+    
+    async function startTraining() {
+      if (!isInitialized) return;
+      await GridMindClient.executeFederatedRound();
+    }
+    
+    async function startMultipleRounds() {
+      if (!isInitialized) return;
+      await GridMindClient.runMultipleRounds(5);
+    }
+    
+    function displaySampleData() {
+      const grid = document.getElementById('sampleGrid');
+      grid.innerHTML = '';
+      
+      // Generate a small batch for display
+      const batch = GridMindData.generateBatch(10);
+      
+      // Create canvas elements
+      for (let i = 0; i < 10; i++) {
+        const canvas = document.createElement('canvas');
+        canvas.className = 'sample-canvas';
+        canvas.width = 28;
+        canvas.height = 28;
+        grid.appendChild(canvas);
+        
+        // Draw the image
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.createImageData(28, 28);
+        
+        tf.tidy(() => {
+          const img = batch.xs.slice([i, 0, 0, 0], [1, 28, 28, 1]).reshape([28, 28]);
+          const data = img.dataSync();
+          
+          for (let j = 0; j < 784; j++) {
+            const val = Math.floor(data[j] * 255);
+            imageData.data[j * 4] = val;
+            imageData.data[j * 4 + 1] = val;
+            imageData.data[j * 4 + 2] = val;
+            imageData.data[j * 4 + 3] = 255;
+          }
+        });
+        
+        ctx.putImageData(imageData, 0, 0);
+      }
+      
+      // Clean up tensors
+      batch.xs.dispose();
+      batch.ys.dispose();
+    }
+    
+    function updateModelSummary() {
+      const state = GridMindClient.getState();
+      const model = state.model;
+      
+      if (!model) {
+        console.warn('Model not available for summary');
+        return;
+      }
+      
+      // Build a formatted summary
+      const paramCount = GridMindModel.countParameters(model);
+      const summaryEl = document.getElementById('modelSummary');
+      
+      let summaryText = `Model: ${model.name || 'gridmind-mnist-classifier'}\n`;
+      summaryText += `${'─'.repeat(50)}\n`;
+      
+      model.layers.forEach((layer, i) => {
+        const config = layer.getConfig();
+        const outputShape = layer.outputShape;
+        const weights = layer.getWeights();
+        const params = weights.reduce((sum, w) => sum + w.size, 0);
+        
+        summaryText += `${i + 1}. ${layer.name.padEnd(15)} `;
+        summaryText += `Output: ${JSON.stringify(outputShape).padEnd(18)} `;
+        summaryText += `Params: ${params}\n`;
+      });
+      
+      summaryText += `${'─'.repeat(50)}\n`;
+      summaryText += `Total trainable parameters: ${paramCount.toLocaleString()}`;
+      
+      summaryEl.textContent = summaryText;
+    }
+    
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      addLogMessage('<span class="log-timestamp">[System]</span> Page loaded. TensorFlow.js version: ' + tf.version.tfjs);
+    });
+  </script>
+</body>
+</html>
