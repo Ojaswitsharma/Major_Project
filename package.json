@@ -1,0 +1,12 @@
+{
+  "name": "gridmind",
+  "version": "1.0.0",
+  "description": "Browser-Based Federated Learning Platform",
+  "scripts": {
+    "start": "cd server && npm start",
+    "install": "cd server && npm install"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
