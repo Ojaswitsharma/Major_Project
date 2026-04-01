@@ -45,6 +45,7 @@ import * as FedUtils from './fedUtils.js';
 // =============================================================================
 
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';  // Bind to all interfaces for external access
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -265,14 +266,17 @@ io.on('connection', (socket) => {
 // SERVER STARTUP
 // =============================================================================
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, HOST, () => {
   console.log('');
   console.log('═══════════════════════════════════════════════════════════════');
   console.log('                    GridMind Server v1.0                        ');
   console.log('═══════════════════════════════════════════════════════════════');
-  console.log(`  Server running at:     http://localhost:${PORT}`);
+  console.log(`  Server running at:     http://${HOST}:${PORT}`);
   console.log(`  Client UI at:          http://localhost:${PORT}/index.html`);
   console.log(`  API Stats at:          http://localhost:${PORT}/api/stats`);
+  console.log('═══════════════════════════════════════════════════════════════');
+  console.log('  For remote clients, use ngrok or your public IP');
+  console.log('  Example: ngrok http 3000');
   console.log('═══════════════════════════════════════════════════════════════');
   console.log('  Waiting for clients to connect...');
   console.log('');
